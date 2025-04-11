@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Command</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #111827; /* dark gray background */ color: #e5e7eb; /* light gray text */ overflow: hidden; }
+        #game-container { max-width: 1000px; margin: 2vh auto; background-color: #1f2937; /* slightly lighter gray */ border-radius: 0.5rem; box-shadow: 0 0 20px rgba(79, 70, 229, 0.3); border: 1px solid #374151; }
+        #battle-area { display: flex; justify-content: space-around; align-items: center; padding: 2rem 1rem; min-height: 300px; position: relative; border-bottom: 1px solid #374151; }
+        #player-side, #enemy-side { display: flex; flex-direction: column; align-items: center; width: 40%; }
+        .character, .enemy { text-align: center; margin-bottom: 1rem; padding: 0.5rem; border-radius: 0.375rem; position: relative; transition: transform 0.2s ease-out; }
+        .character.active-turn { transform: scale(1.1); box-shadow: 0 0 15px #a78bfa; /* violet-400 glow */ border: 1px solid #a78bfa; }
+        .enemy.targeted { outline: 3px dashed #facc15; /* yellow-400 */ }
+        .character-icon, .enemy-icon { font-size: 3rem; margin-bottom: 0.5rem; }
+        .hp-bar-container, .cp-bar-container { width: 80px; height: 8px; background-color: #4b5563; border-radius: 4px; overflow: hidden; margin: 0.25rem auto; }
+        .hp-bar { height: 100%; background-color: #22c55e; /* green-500 */ transition: width 0.3s ease; }
+        .cp-bar { height: 100%; background-color: #3b82f6; /* blue-500 */ transition: width 0.3s ease; }
+        .status-effect { font-size: 1.5rem; position: absolute; top: -10px; right: -5px; animation: pulse-status 1s infinite; }
+        @keyframes pulse-status { 50% { opacity: 0.5; transform: scale(1.1); } }
+        #action-menu { padding: 1rem; background-color: #374151; border-radius: 0 0 0.5rem 0.5rem; }
+        .action-button { background-color: #4f46e5; /* indigo-600 */ color: white; border: none; padding: 0.5rem 1rem; margin: 0.25rem; border-radius: 0.25rem; cursor: pointer; transition: background-color 0.2s; font-size: 0.8rem; }
+        .action-button:hover:not(:disabled) { background-color: #6366f1; /* indigo-500 */ }
+        .action-button:disabled { opacity: 0.5; cursor: not-allowed; background-color: #6b7280; }
+        #message-log { height: 60px; overflow-y: auto; background-color: #111827; padding: 0.5rem; border-radius: 0.25rem; margin-top: 1rem; font-size: 0.75rem; }
+        #message-log p { margin: 0 0 0.25rem 0; border-bottom: 1px dashed #374151; padding-bottom: 0.25rem; }
+        /* Damage/Effect Text */
+        .effect-text { position: absolute; top: 20%; left: 50%; transform: translateX(-50%) translateY(-50px); font-size: 1.1rem; font-weight: bold; color: #facc15; /* yellow */ text-shadow: 1px 1px 2px black; animation: floatUp 1s ease-out forwards; pointer-events: none; z-index: 10; }
+        .heal-text { color: #4ade80; /* green */ }
+        .cp-text { color: #60a5fa; /* blue */ }
+        @keyframes floatUp { 0% { opacity: 1; transform: translateX(-50%) translateY(0); } 100% { opacity: 0; transform: translateX(-50%) translateY(-60px); } }
+        /* Simple enemy visuals */
+        .enemy-X .enemy-icon { color: #f43f5e; } /* rose-500 */
+        .enemy-Z .enemy-icon { color: #8b5cf6; } /* violet-500 */
+        .enemy-L .enemy-icon { color: #f59e0b; } /* amber-500 */
+        .enemy-C .enemy-icon { color: #ef4444; } /* red-500 */
+        /* Simple character visuals */
+        .char-LQ .char-icon { color: #60a5fa; } /* blue-400 */
+        .char-DEC .char-icon { color: #a78bfa; } /* violet-400 */
+        .char-STAB .char-icon { color: #34d399; } /* emerald-400 */
+        .char-DQLR .char-icon { color: #fbbf24; } /* amber-400 */
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="battle-area">
+            <div id="player-side">
+                </div>
+            <div id="enemy-side">
+                </div>
+        </div>
+
+        <div id="action-menu">
+            <div id="skill-buttons" class="flex flex-wrap justify-center">
+                <p class="w-full text-center text-sm text-gray-400">Select an active character to see actions.</p>
+            </div>
+            <div id="message-log">
+                <p>Battle Start!</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-over-screen" class="fixed inset-0 bg-black bg-opacity-75 flex flex-col justify-center items-center hidden z-50">
+        <h2 id="game-over-title" class="text-4xl font-bold mb-4">Logical Error!</h2>
+        <p id="game-over-message" class="text-xl mb-6">The quantum state decohered.</p>
+        <button id="restart-btn" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded text-lg">Restart Battle</button>
+    </div>
+
+
+    <script>
+        // --- Game Configuration ---
+        const MAX_LOG_MESSAGES = 10;
+        const PLAYER_TEAM = [
+            { id: 'lq1', name: 'Logical Qubit', type: 'LQ', hp: 100, maxHp: 100, cp: 0, maxCp: 0, speed: 5, icon: 'fa-shield-halved', skills: [], description: "The core quantum state. Must be protected!" },
+            { id: 'dec1', name: 'Matcher', type: 'DEC', hp: 50, maxHp: 50, cp: 30, maxCp: 30, speed: 10, icon: 'fa-project-diagram', skills: ['analyze', 'correct_x', 'correct_z'], description: "Basic decoder, good at standard corrections." },
+            { id: 'stab1', name: 'Stabilizer', type: 'STAB', hp: 40, maxHp: 40, cp: 40, maxCp: 40, speed: 8, icon: 'fa-crosshairs', skills: ['analyze', 'pinpoint', 'expose_weakness'], description: "Analyzes errors and identifies weaknesses." },
+            { id: 'dqlr1', name: 'Purifier', type: 'DQLR', hp: 45, maxHp: 45, cp: 35, maxCp: 35, speed: 7, icon: 'fa-filter-circle-xmark', skills: ['purge_leakage', 'restore_coherence'], description: "Specializes in removing Leakage and restoring stability." }
+            // Add 'Neural Net' decoder later? (High cost, high power skills)
+        ];
+        const ENEMY_TYPES = {
+            'X': { name: 'X-Flip', hp: 25, speed: 9, icon: 'fa-xmark', attacks: [{ type: 'damage', power: 8, target: 'lq' }], weakness: 'Z', resistance: 'X', description: "A basic bit-flip error." },
+            'Z': { name: 'Z-Phase', hp: 25, speed: 9, icon: 'fa-z', attacks: [{ type: 'damage', power: 8, target: 'lq' }], weakness: 'X', resistance: 'Z', description: "A basic phase-flip error." },
+            'L': { name: 'Leakage Phantom', hp: 40, speed: 6, icon: 'fa-ghost', attacks: [{ type: 'status', effect: 'decohere', duration: 3, target: 'lq' }, { type: 'buff', effect: 'empower', target: 'allies' }], weakness: 'DQLR', resistance: null, description: "Drains stability and empowers other errors. Weak to Purging." },
+            'C': { name: 'Correlated Noise', hp: 70, speed: 5, icon: 'fa-link', attacks: [{ type: 'damage', power: 15, target: 'lq' }, { type: 'summon', enemyType: ['X', 'Z'], count: 1, target: 'self' }], weakness: null, resistance: null, description: "A complex error source, can summon basic errors." }
+        };
+        const SKILLS = {
+            'analyze': { name: 'Analyze', cost: 3, target: 'enemy', effect: 'analyze', power: 0, description: "Scan an error to reveal basic info (HP)." },
+            'correct_x': { name: 'Correct X', cost: 5, target: 'enemy', effect: 'damage', power: 15, type: 'X', description: "Corrects X-type errors. Weak vs Z-Flips." },
+            'correct_z': { name: 'Correct Z', cost: 5, target: 'enemy', effect: 'damage', power: 15, type: 'Z', description: "Corrects Z-type errors. Weak vs X-Flips." },
+            'purge_leakage': { name: 'Purge Leakage', cost: 8, target: 'enemy', effect: 'damage', power: 25, type: 'DQLR', description: "Effective against Leakage Phantoms." },
+            'restore_coherence': { name: 'Restore Coherence', cost: 10, target: 'ally', effect: 'heal', power: 20, type: 'DQLR', description: "Restores Stability (HP) to an ally (usually the LQ)." },
+            'pinpoint': { name: 'Pinpoint', cost: 6, target: 'enemy', effect: 'defense_down', duration: 2, power: 0.3, description: "Lower an error's defense for 2 turns." },
+            'expose_weakness': { name: 'Expose Weakness', cost: 8, target: 'enemy', effect: 'reveal_weakness', power: 0, description: "Reveal an error's specific weakness." },
+            // Add more skills: High Fidelity Correction (High cost/power), Boost (increase ally speed/attack), etc.
+        };
+
+        // --- Game State ---
+        let playerTeam = [];
+        let enemies = [];
+        let turnOrder = [];
+        let currentTurnIndex = 0;
+        let selectedCharacterId = null;
+        let selectedSkill = null;
+        let selectedTargetId = null;
+        let messageLog = [];
+        let gameOver = false;
+
+        // --- DOM Elements ---
+        const playerSideEl = document.getElementById('player-side');
+        const enemySideEl = document.getElementById('enemy-side');
+        const skillButtonsEl = document.getElementById('skill-buttons');
+        const messageLogEl = document.getElementById('message-log');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const gameOverTitle = document.getElementById('game-over-title');
+        const gameOverMessage = document.getElementById('game-over-message');
+        const restartBtn = document.getElementById('restart-btn');
+
+        // --- Sound Initialization ---
+        let soundEnabled = false;
+        let synth, noiseSynth, lowCoherenceSynth; // Add more as needed
+        function setupSounds() { /* ... */
+             synth = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 } }).toDestination();
+             noiseSynth = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.005, decay: 0.05, sustain: 0 } }).toDestination();
+             console.log("Audio context started."); soundEnabled = true;
+        }
+        function playSound(type) { /* ... */
+             if (!soundEnabled) return;
+             try {
+                 const now = Tone.now();
+                 switch(type) {
+                     case 'select': synth.triggerAttackRelease('C5', '32n', now); break;
+                     case 'confirm': synth.triggerAttackRelease('E5', '16n', now); break;
+                     case 'cancel': synth.triggerAttackRelease('C4', '16n', now); break;
+                     case 'player_attack': noiseSynth.triggerAttackRelease('8n', now); synth.triggerAttackRelease('A4', '8n', now + 0.01); break;
+                     case 'enemy_attack': noiseSynth.triggerAttackRelease('8n', now + 0.05); synth.triggerAttackRelease('D3', '8n', now + 0.06); break;
+                     case 'heal': synth.triggerAttackRelease('C6', '8n', now); break;
+                     case 'buff': synth.triggerAttackRelease('E5', '16n', now); synth.triggerAttackRelease('G5', '16n', now + 0.1); break;
+                     case 'debuff': synth.triggerAttackRelease('F#3', '8n', now); break;
+                     case 'weakness_hit': synth.triggerAttackRelease('B5', '8n', now); noiseSynth.triggerAttackRelease('16n', now + 0.02); break;
+                     case 'error_defeated': noiseSynth.triggerAttackRelease('4n', now); synth.triggerAttackRelease('C3', '4n', now + 0.05); break;
+                     case 'game_over': noiseSynth.triggerAttackRelease('1n', now); synth.triggerAttackRelease('A1', '1n', now); break;
+                     case 'battle_start': synth.triggerAttackRelease('C4', '8n'); synth.triggerAttackRelease('E4', '8n', now+0.2); synth.triggerAttackRelease('G4', '8n', now+0.4); break;
+                 }
+             } catch (e) { console.error("Sound playback error:", e); }
+        }
+        function initAudio() { /* ... */
+             if (!soundEnabled && Tone.context.state !== 'running') { Tone.start().then(setupSounds); }
+             else if (!soundEnabled && Tone.context.state === 'running') { setupSounds(); }
+             window.removeEventListener('click', initAudio); window.removeEventListener('keydown', initAudio);
+        }
+        window.addEventListener('click', initAudio, { once: true }); window.addEventListener('keydown', initAudio, { once: true });
+
+
+        // --- Game Logic Functions ---
+
+        function startGame() {
+            gameOver = false;
+            gameOverScreen.classList.add('hidden');
+            gameOverScreen.classList.remove('show');
+            messageLog = [];
+            logMessage("Battle Start!");
+
+            // Deep copy player team template
+            playerTeam = JSON.parse(JSON.stringify(PLAYER_TEAM));
+            // Setup initial enemies (e.g., 2 basic errors, 1 leakage)
+            enemies = [
+                createEnemy('X'),
+                createEnemy('Z'),
+                createEnemy('L')
+            ];
+
+            setupTurnOrder();
+            currentTurnIndex = 0;
+            selectedCharacterId = null;
+            selectedSkill = null;
+            selectedTargetId = null;
+
+            drawBattleState();
+            updateActionMenu();
+            playSound('battle_start');
+            setTimeout(nextTurn, 500); // Start the first turn after a short delay
+        }
+
+        function createEnemy(type) {
+            const base = ENEMY_TYPES[type];
+            if (!base) return null;
+            return {
+                ...JSON.parse(JSON.stringify(base)), // Deep copy base stats
+                id: `enemy_${type}_${Math.random().toString(16).slice(2)}`, // Unique ID
+                currentHp: base.hp,
+                statusEffects: [] // { effect, duration }
+            };
+        }
+
+        function setupTurnOrder() {
+            turnOrder = [...playerTeam, ...enemies].sort((a, b) => b.speed - a.speed); // Highest speed first
+            console.log("Turn order:", turnOrder.map(u => u.name));
+        }
+
+        function getCurrentUnit() {
+            if (gameOver || turnOrder.length === 0) return null;
+            return turnOrder[currentTurnIndex % turnOrder.length];
+        }
+
+        function nextTurn() {
+            if (gameOver) return;
+
+            // Clear previous turn states
+            selectedSkill = null;
+            selectedTargetId = null;
+            if (selectedCharacterId) {
+                 const prevCharEl = document.getElementById(selectedCharacterId);
+                 if (prevCharEl) prevCharEl.classList.remove('active-turn');
+                 selectedCharacterId = null;
+            }
+
+            // Apply status effects (DoT, buffs/debuffs expiring)
+            applyStatusEffects();
+
+            // Check win/loss conditions
+            if (enemies.length === 0) {
+                endGame(true, "All errors corrected!");
+                return;
+            }
+            const lq = playerTeam.find(c => c.type === 'LQ');
+            if (!lq || lq.hp <= 0) {
+                endGame(false, "Logical Qubit Decohered!");
+                return;
+            }
+
+            currentTurnIndex++;
+            if (currentTurnIndex >= turnOrder.length) {
+                currentTurnIndex = 0; // Loop back
+                // Maybe regenerate some CP at the start of a full round?
+                playerTeam.forEach(p => { if(p.type !== 'LQ') p.cp = Math.min(p.maxCp, p.cp + 5); });
+            }
+
+            const currentUnit = getCurrentUnit();
+            if (!currentUnit) { // Should not happen if checks above pass
+                 console.error("Error getting current unit");
+                 return;
+            }
+
+            logMessage(`${currentUnit.name}'s turn.`);
+
+             // Highlight active unit
+             const activeUnitEl = document.getElementById(currentUnit.id);
+             if (activeUnitEl) activeUnitEl.classList.add('active-turn');
+
+
+            if (playerTeam.some(p => p.id === currentUnit.id)) {
+                // Player's turn
+                selectedCharacterId = currentUnit.id;
+                updateActionMenu(); // Show skills for this character
+            } else {
+                // Enemy's turn
+                updateActionMenu(); // Clear/disable player actions
+                setTimeout(enemyAI, 800); // Delay for enemy action
+            }
+             drawBattleState(); // Update HP/CP bars etc.
+        }
+
+        function applyStatusEffects() {
+             [...playerTeam, ...enemies].forEach(unit => {
+                 unit.statusEffects = unit.statusEffects.filter(effect => {
+                     switch(effect.effect) {
+                         case 'decohere':
+                             const lq = playerTeam.find(c => c.type === 'LQ');
+                             if (lq) {
+                                 const damage = Math.max(1, Math.floor(lq.maxHp * 0.05)); // 5% HP damage per turn
+                                 lq.hp = Math.max(0, lq.hp - damage);
+                                 logMessage(`${unit.name}'s ${effect.effect} damages LQ for ${damage} Stability!`);
+                                 showEffectText(lq.id, `-${damage}`, 'damage');
+                             }
+                             break;
+                         case 'defense_down':
+                              // Effect applied during damage calculation
+                              break;
+                         case 'empower':
+                             // Effect applied during damage calculation
+                             break;
+                         // Add more effects
+                     }
+                     effect.duration--;
+                     return effect.duration > 0; // Keep effect if duration > 0
+                 });
+             });
+        }
+
+        function enemyAI() {
+            if (gameOver) return;
+            const enemy = getCurrentUnit();
+            if (!enemy || !enemies.some(e => e.id === enemy.id)) {
+                nextTurn(); // Enemy might have been defeated before its turn
+                return;
+            }
+
+            // Simple AI: Choose a random attack and target
+            const availableAttacks = enemy.attacks;
+            if (!availableAttacks || availableAttacks.length === 0) {
+                 logMessage(`${enemy.name} does nothing.`);
+                 setTimeout(nextTurn, 500);
+                 return;
+            }
+            const attack = availableAttacks[Math.floor(Math.random() * availableAttacks.length)];
+
+            let target = null;
+            if (attack.target === 'lq') {
+                target = playerTeam.find(c => c.type === 'LQ');
+            } else if (attack.target === 'random_player') {
+                 const potentialTargets = playerTeam.filter(p => p.hp > 0);
+                 if (potentialTargets.length > 0) {
+                     target = potentialTargets[Math.floor(Math.random() * potentialTargets.length)];
+                 }
+            } else if (attack.target === 'self') {
+                 target = enemy;
+            } else if (attack.target === 'allies') {
+                 // Apply buff to other enemies (implementation needed)
+                 logMessage(`${enemy.name} empowers its allies!`);
+                 playSound('buff');
+                 setTimeout(nextTurn, 800); // Skip detailed effect for now
+                 return;
+            } else if (attack.type === 'summon') {
+                 // Summon logic
+                 for (let i=0; i < attack.count; i++) {
+                     const typeToSummon = attack.enemyType[Math.floor(Math.random() * attack.enemyType.length)];
+                     const newEnemy = createEnemy(typeToSummon);
+                     if (newEnemy && enemies.length < 4) { // Limit max enemies
+                         enemies.push(newEnemy);
+                         logMessage(`${enemy.name} summons a ${newEnemy.name}!`);
+                         // Don't add to turn order immediately, maybe next round? For simplicity, add now.
+                         turnOrder.push(newEnemy);
+                     }
+                 }
+                 drawBattleState();
+                 setTimeout(nextTurn, 800);
+                 return;
+            }
+
+
+            if (target && target.hp > 0) {
+                logMessage(`${enemy.name} uses ${attack.type} on ${target.name}.`);
+                playSound('enemy_attack');
+                executeAction(enemy, attack, target);
+            } else {
+                 logMessage(`${enemy.name} tries to act but finds no valid target.`);
+            }
+
+            // Delay before next turn
+            setTimeout(nextTurn, 1200);
+        }
+
+        function selectSkill(skillId) {
+             playSound('select');
+             const character = playerTeam.find(c => c.id === selectedCharacterId);
+             const skill = SKILLS[skillId];
+             if (!character || !skill || character.cp < skill.cost) {
+                 console.warn("Cannot select skill:", skillId, character, skill);
+                 return;
+             }
+             selectedSkill = skillId;
+             logMessage(`Selected skill: ${skill.name}. Choose target.`);
+             // Highlight potential targets
+             updateActionMenu(); // Reflect skill selection
+             drawBattleState(); // Highlight targets
+        }
+
+        function selectTarget(targetId) {
+             playSound('select');
+             if (!selectedSkill) {
+                 logMessage("Select a skill first!");
+                 return;
+             }
+             selectedTargetId = targetId;
+             logMessage(`Targeted: ${turnOrder.find(u=>u.id === targetId)?.name}. Confirm action.`);
+             // Highlight selected target
+             updateActionMenu(); // Enable confirm button
+             drawBattleState();
+        }
+
+        function confirmAction() {
+            playSound('confirm');
+            const character = playerTeam.find(c => c.id === selectedCharacterId);
+            const skill = SKILLS[selectedSkill];
+            const target = turnOrder.find(u => u.id === selectedTargetId);
+
+            if (character && skill && target && character.cp >= skill.cost) {
+                character.cp -= skill.cost;
+                logMessage(`${character.name} uses ${skill.name} on ${target.name}!`);
+                playSound('player_attack');
+                executeAction(character, skill, target);
+
+                // Clear selections and proceed
+                selectedSkill = null;
+                selectedTargetId = null;
+                updateActionMenu(); // Disable buttons until next turn
+                drawBattleState();
+                setTimeout(nextTurn, 1200); // Delay after player action
+            } else {
+                logMessage("Action failed (not enough CP or invalid target?).");
+                 playSound('cancel');
+                // Reset selection
+                selectedSkill = null;
+                selectedTargetId = null;
+                updateActionMenu();
+                drawBattleState();
+            }
+        }
+
+        function executeAction(source, action, target) {
+            let damage = 0;
+            let effectApplied = false;
+            let hitWeakness = false;
+
+            // Apply source buffs (e.g., empower)
+            let powerMultiplier = 1.0;
+            source.statusEffects?.forEach(eff => {
+                 if (eff.effect === 'empower') powerMultiplier *= 1.5; // Example empower effect
+            });
+
+            // Apply target debuffs (e.g., defense_down)
+             let defenseMultiplier = 1.0;
+             target.statusEffects?.forEach(eff => {
+                 if (eff.effect === 'defense_down') defenseMultiplier *= (1 + eff.power); // Defense down increases damage taken
+             });
+
+
+            switch(action.effect) {
+                case 'damage':
+                    damage = Math.floor(action.power * powerMultiplier * defenseMultiplier);
+                    // Check weakness/resistance
+                    const targetInfo = ENEMY_TYPES[target.type]; // Need enemy type property
+                    if (targetInfo) {
+                        if (targetInfo.weakness === action.type) {
+                            damage = Math.floor(damage * 1.5); // Weakness bonus
+                            hitWeakness = true;
+                            logMessage("Hit weakness!");
+                            playSound('weakness_hit');
+                        } else if (targetInfo.resistance === action.type) {
+                            damage = Math.floor(damage * 0.5); // Resistance penalty
+                            logMessage("Resisted!");
+                        }
+                    }
+                    target.hp = Math.max(0, target.hp - damage);
+                    logMessage(`${target.name} takes ${damage} damage.`);
+                    showEffectText(target.id, `-${damage}`, 'damage' + (hitWeakness ? ' weakness' : ''));
+                    if (target.hp <= 0) {
+                        handleDefeat(target);
+                    }
+                    break;
+                case 'heal':
+                    const healAmount = Math.floor(action.power * powerMultiplier);
+                    target.hp = Math.min(target.maxHp, target.hp + healAmount);
+                    logMessage(`${target.name} recovers ${healAmount} Stability.`);
+                     playSound('heal');
+                    showEffectText(target.id, `+${healAmount}`, 'heal');
+                    break;
+                case 'status':
+                case 'defense_down':
+                case 'empower': // Apply status effect
+                     // Avoid duplicate effects? Or stack? Simple: Replace existing of same type.
+                     target.statusEffects = target.statusEffects?.filter(eff => eff.effect !== action.effect) || [];
+                     target.statusEffects.push({ effect: action.effect, duration: action.duration, power: action.power });
+                     logMessage(`${target.name} is affected by ${action.effect}!`);
+                     playSound(action.effect === 'empower' ? 'buff' : 'debuff');
+                     showEffectText(target.id, `${action.effect.toUpperCase()}!`, 'status');
+                     effectApplied = true;
+                     break;
+                case 'reveal_weakness':
+                     const enemyTypeInfo = ENEMY_TYPES[target.type];
+                     if (enemyTypeInfo) {
+                         logMessage(`${target.name}'s weakness is ${enemyTypeInfo.weakness || 'None'}. Resistance: ${enemyTypeInfo.resistance || 'None'}.`);
+                         showEffectText(target.id, `Weak: ${enemyTypeInfo.weakness || 'N/A'}`, 'status');
+                     } else {
+                         logMessage(`Analysis failed on ${target.name}.`);
+                     }
+                     playSound('buff'); // Generic analysis sound
+                     effectApplied = true;
+                    break;
+                case 'analyze': // Simple HP reveal for now
+                     logMessage(`${target.name} Analysis: HP ${target.hp}/${target.maxHp}`);
+                     showEffectText(target.id, `HP ${target.hp}/${target.maxHp}`, 'status');
+                     playSound('buff');
+                     effectApplied = true;
+                     break;
+                // Add more effects
+            }
+            // Update UI after action
+            drawBattleState();
+        }
+
+         function handleDefeat(unit) {
+             logMessage(`${unit.name} is corrected!`);
+             playSound('error_defeated');
+             showEffectText(unit.id, 'Corrected!', 'heal'); // Use heal color for positive outcome
+
+             // Remove from enemy list and turn order
+             enemies = enemies.filter(e => e.id !== unit.id);
+             turnOrder = turnOrder.filter(u => u.id !== unit.id);
+
+             // Adjust turn index if needed
+             currentTurnIndex--; // Since the array shifted
+             if (currentTurnIndex < 0) currentTurnIndex = turnOrder.length -1; // Wrap if needed, though nextTurn handles wrap
+
+             // Redraw immediately to remove defeated unit
+             drawBattleState();
+         }
+
+         function showEffectText(targetId, text, typeClass = 'damage') {
+             const targetElement = document.getElementById(targetId);
+             if (!targetElement) return;
+
+             const effectEl = document.createElement('div');
+             effectEl.className = `effect-text ${typeClass}`;
+             effectEl.textContent = text;
+
+             // Append to the battle area, not the target itself, for positioning
+             document.getElementById('battle-area').appendChild(effectEl);
+
+             // Position near the target
+             const rect = targetElement.getBoundingClientRect();
+             const containerRect = document.getElementById('battle-area').getBoundingClientRect();
+             effectEl.style.left = `${rect.left - containerRect.left + rect.width / 2}px`;
+             effectEl.style.top = `${rect.top - containerRect.top}px`; // Start above target
+
+             // Remove after animation
+             setTimeout(() => {
+                 effectEl.remove();
+             }, 1000); // Match animation duration
+         }
+
+        function logMessage(message) {
+            console.log(message);
+            messageLog.push(message);
+            if (messageLog.length > MAX_LOG_MESSAGES * 2) { // Keep buffer larger than display
+                messageLog.shift();
+            }
+            // Update display (can be slow if logging rapidly, better to batch in draw/updateUI)
+            const logHtml = messageLog.slice(-MAX_LOG_MESSAGES).map(m => `<p>${m}</p>`).join('');
+            messageLogEl.innerHTML = logHtml;
+            messageLogEl.scrollTop = messageLogEl.scrollHeight;
+        }
+
+        // --- Drawing Functions ---
+        function drawBattleState() {
+            // Draw Player Team
+            playerSideEl.innerHTML = '';
+            playerTeam.forEach(p => playerSideEl.appendChild(createUnitElement(p, true)));
+
+            // Draw Enemies
+            enemySideEl.innerHTML = '';
+            enemies.forEach(e => enemySideEl.appendChild(createUnitElement(e, false)));
+
+            // Highlight target if skill selected
+             document.querySelectorAll('.enemy, .character').forEach(el => el.classList.remove('targeted'));
+             if (selectedSkill && selectedTargetId) {
+                 const targetEl = document.getElementById(selectedTargetId);
+                 if (targetEl) targetEl.classList.add('targeted');
+             } else if (selectedSkill) {
+                 // Highlight potential targets based on skill type
+                 const skillInfo = SKILLS[selectedSkill];
+                 const potentialTargets = turnOrder.filter(unit => {
+                     if (skillInfo.target === 'enemy') return enemies.some(e => e.id === unit.id);
+                     if (skillInfo.target === 'ally') return playerTeam.some(p => p.id === unit.id);
+                     if (skillInfo.target === 'self') return unit.id === selectedCharacterId;
+                     return false;
+                 });
+                 potentialTargets.forEach(unit => {
+                     const el = document.getElementById(unit.id);
+                     if (el) el.classList.add('targeted'); // Use targeted style for potential targets too
+                 });
+             }
+        }
+
+        function createUnitElement(unit, isPlayer) {
+            const div = document.createElement('div');
+            div.id = unit.id;
+            div.className = `unit ${isPlayer ? 'character' : 'enemy'} ${isPlayer ? 'char-' + unit.type : 'enemy-' + unit.type}`;
+            if (!isPlayer) {
+                 // Add click listener for targeting enemies
+                 div.onclick = () => { if(selectedSkill) selectTarget(unit.id); };
+                 div.style.cursor = selectedSkill ? 'pointer' : 'default';
+            } else {
+                 // Add click listener for selecting player characters (for healing/buffs)
+                 div.onclick = () => { if(selectedSkill && SKILLS[selectedSkill].target === 'ally') selectTarget(unit.id); };
+                 div.style.cursor = (selectedSkill && SKILLS[selectedSkill].target === 'ally') ? 'pointer' : 'default';
+            }
+
+
+            // Icon
+            const icon = document.createElement('i');
+            icon.className = `fas ${unit.icon} ${isPlayer ? '' : 'enemy-icon'} character-icon`; // Use character-icon for consistent sizing
+            div.appendChild(icon);
+
+            // Name
+            const name = document.createElement('div');
+            name.className = 'text-sm font-semibold';
+            name.textContent = unit.name;
+            div.appendChild(name);
+
+            // HP Bar
+            const hpContainer = document.createElement('div');
+            hpContainer.className = 'hp-bar-container';
+            const hpBar = document.createElement('div');
+            hpBar.className = 'hp-bar';
+            hpBar.style.width = `${Math.max(0, (unit.hp / unit.maxHp) * 100)}%`;
+            hpContainer.appendChild(hpBar);
+            div.appendChild(hpContainer);
+            const hpText = document.createElement('div');
+            hpText.className = 'text-xs text-gray-400';
+            hpText.textContent = `${unit.hp}/${unit.maxHp}`;
+            div.appendChild(hpText);
+
+
+            // CP Bar (for player non-LQ characters)
+            if (isPlayer && unit.type !== 'LQ') {
+                const cpContainer = document.createElement('div');
+                cpContainer.className = 'cp-bar-container';
+                const cpBar = document.createElement('div');
+                cpBar.className = 'cp-bar';
+                cpBar.style.width = `${Math.max(0, (unit.cp / unit.maxCp) * 100)}%`;
+                cpContainer.appendChild(cpBar);
+                div.appendChild(cpContainer);
+                 const cpText = document.createElement('div');
+                 cpText.className = 'text-xs text-gray-400';
+                 cpText.textContent = `${unit.cp}/${unit.maxCp}`;
+                 div.appendChild(cpText);
+            }
+
+             // Status Effects Icons
+             unit.statusEffects?.forEach(eff => {
+                 const statusIcon = document.createElement('i');
+                 let iconClass = '';
+                 let colorClass = '';
+                 switch(eff.effect) {
+                     case 'decohere': iconClass = 'fa-arrow-trend-down'; colorClass = 'text-red-500'; break;
+                     case 'defense_down': iconClass = 'fa-shield-slash'; colorClass = 'text-yellow-500'; break;
+                     case 'empower': iconClass = 'fa-bolt'; colorClass = 'text-blue-400'; break;
+                     // Add more icons
+                 }
+                 if (iconClass) {
+                     statusIcon.className = `fas ${iconClass} ${colorClass} status-effect`;
+                     statusIcon.title = `${eff.effect} (${eff.duration} turns left)`; // Tooltip
+                     div.appendChild(statusIcon);
+                 }
+             });
+
+
+            return div;
+        }
+
+        function updateActionMenu() {
+            skillButtonsEl.innerHTML = ''; // Clear previous buttons
+            const character = playerTeam.find(c => c.id === selectedCharacterId);
+
+            if (character && character.type !== 'LQ') { // LQ doesn't get actions
+                character.skills.forEach(skillId => {
+                    const skill = SKILLS[skillId];
+                    if (!skill) return;
+
+                    const button = document.createElement('button');
+                    button.className = 'action-button';
+                    button.textContent = `${skill.name} (${skill.cost} CP)`;
+                    button.disabled = character.cp < skill.cost || !!selectedSkill; // Disable if skill already selected
+                    button.onclick = () => selectSkill(skillId);
+                    skillButtonsEl.appendChild(button);
+                });
+
+                // Add Confirm / Cancel buttons if skill and target selected
+                if (selectedSkill && selectedTargetId) {
+                     const confirmBtn = document.createElement('button');
+                     confirmBtn.className = 'action-button bg-green-600 hover:bg-green-700';
+                     confirmBtn.textContent = 'Confirm Action';
+                     confirmBtn.onclick = confirmAction;
+                     skillButtonsEl.appendChild(confirmBtn);
+
+                     const cancelBtn = document.createElement('button');
+                     cancelBtn.className = 'action-button bg-gray-500 hover:bg-gray-600';
+                     cancelBtn.textContent = 'Cancel';
+                     cancelBtn.onclick = () => {
+                         playSound('cancel');
+                         selectedSkill = null; selectedTargetId = null; updateActionMenu(); drawBattleState();
+                         logMessage("Action cancelled.");
+                     };
+                     skillButtonsEl.appendChild(cancelBtn);
+                }
+
+            } else {
+                 skillButtonsEl.innerHTML = '<p class="w-full text-center text-sm text-gray-400">Waiting for turn...</p>';
+            }
+        }
+
+        function endGame(isWin, message) {
+             if (gameOver) return; // Prevent multiple triggers
+             gameOver = true;
+             playSound('game_over');
+             console.log("Game Over:", message);
+             gameOverTitle.textContent = isWin ? "Correction Complete!" : "Logical Error!";
+             gameOverMessage.textContent = message;
+             gameOverScreen.classList.remove('hidden');
+             gameOverScreen.classList.add('show');
+             // Stop turn advancement? (Already handled by gameOver flag)
+        }
+
+
+        // --- Initialization ---
+        restartBtn.addEventListener('click', () => { playSound('click'); startGame(); });
+        document.addEventListener('DOMContentLoaded', startGame);
+
+    </script>
+
+</body>
+</html>
