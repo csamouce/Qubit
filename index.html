@@ -2,343 +2,247 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quantum Command</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>QEC Visualizer</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-dark: #111827; --bg-med: #1f2937; --bg-light: #374151;
-            --text-light: #e5e7eb; --text-med: #9ca3af;
-            --accent-blue: #60a5fa; --accent-violet: #a78bfa; --accent-green: #4ade80;
-            --accent-red: #f87171; --accent-yellow: #facc15; --accent-amber: #f59e0b; --accent-emerald: #34d399;
+            --bg-dark: #1f2937; --bg-med: #374151; --bg-light: #4b5563;
+            --text-light: #f3f4f6; --text-med: #d1d5db; --text-dark: #9ca3af;
+            --accent-blue: #60a5fa; --accent-cyan: #22d3ee; --accent-red: #f87171;
+            --accent-orange: #fb923c; --accent-violet: #a78bfa; --accent-green: #4ade80;
+            --accent-yellow: #facc15;
         }
-        body { font-family: 'Inter', sans-serif; background-color: var(--bg-dark); color: var(--text-light); overflow: hidden; }
-        #game-container { max-width: 1000px; margin: 2vh auto; background-color: var(--bg-med); border-radius: 0.5rem; box-shadow: 0 0 25px rgba(96, 165, 250, 0.2); border: 1px solid var(--bg-light); }
-        #battle-area { display: flex; justify-content: space-around; align-items: center; padding: 2rem 1rem; min-height: 350px; position: relative; border-bottom: 1px solid var(--bg-light); background: linear-gradient(160deg, #1f2937, #111827 70%); /* Angled gradient */ overflow: hidden; }
-         /* Subtle animated background grid */
-        #battle-area::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: linear-gradient(var(--bg-light) 1px, transparent 1px), linear-gradient(to right, var(--bg-light) 1px, transparent 1px); background-size: 40px 40px; opacity: 0.05; animation: panGrid 30s linear infinite; z-index: 0; }
-        @keyframes panGrid { 0% { background-position: 0 0; } 100% { background-position: 80px 40px; } }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-dark); color: var(--text-light); padding: 1rem; }
+        #vis-container { max-width: 850px; margin: auto; background-color: var(--bg-med); padding: 1.5rem; border-radius: 0.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: 1px solid var(--bg-light); }
+        /* Top Panel Layout (Controls + Outputs) */
+        #top-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            padding: 1rem;
+            background-color: var(--bg-light);
+            border-radius: 0.375rem;
+            margin-bottom: 1.5rem;
+        }
+        .panel-section { display: flex; flex-direction: column; gap: 0.75rem; }
+        .control-group label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-med); margin-bottom: 0.25rem; }
+        .control-group input[type="range"] { width: 100%; cursor: pointer; accent-color: var(--accent-cyan); }
+        .control-group .value-display { font-weight: 700; color: var(--accent-yellow); margin-left: 0.25rem;}
+        .control-group button { font-family: 'Orbitron', sans-serif; background-color: var(--bg-light); color: var(--text-light); border: none; padding: 0.4rem 0.8rem; border-radius: 0.25rem; cursor: pointer; transition: background-color 0.2s; font-size: 0.8rem; margin-right: 0.5rem; margin-top: 0.25rem; border-bottom: 2px solid #2b3646;}
+        .control-group button:hover:not(:disabled) { background-color: #6b7280; }
+        .control-group button.active { background-color: var(--accent-cyan); color: var(--bg-dark); border-bottom-color: #0e7490; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .output-group { text-align: center; }
+        .output-group .label { font-size: 0.75rem; color: var(--text-med); text-transform: uppercase; letter-spacing: 0.05em;}
+        .output-group .value { font-family: 'Orbitron', sans-serif; font-size: 1.1rem; font-weight: bold; margin-top: 0.1rem; }
+        .el-low { color: var(--accent-green); } .el-med { color: var(--accent-yellow); } .el-high { color: var(--accent-orange); } .el-fail { color: var(--accent-red); }
+        .lambda-good { color: var(--accent-green); } .lambda-bad { color: var(--accent-red); }
+        .threshold-status { padding: 0.3rem 0.6rem; border-radius: 0.25rem; font-weight: bold; font-size: 0.8rem; display: inline-block; margin-top: 0.1rem; }
+        .threshold-below { background-color: var(--accent-green); color: #14532d; }
+        .threshold-above { background-color: var(--accent-red); color: #7f1d1d; }
+        .reference-text { font-size: 0.7rem; color: var(--text-dark); text-align: center; margin-top: 0.5rem; }
+        .action-buttons { display: flex; gap: 0.5rem; justify-content: center; }
 
-        #player-side, #enemy-side { display: flex; flex-direction: column; align-items: center; width: 45%; gap: 1rem; z-index: 1; /* Above background */ }
-        .unit-container { position: relative; }
-        .character, .enemy { text-align: center; padding: 0.5rem; border-radius: 0.375rem; position: relative; transition: transform 0.2s ease-out, filter 0.2s ease-out; width: 100px; background-color: rgba(55, 65, 81, 0.5); border: 1px solid var(--bg-light); backdrop-filter: blur(2px); }
-        .character.active-turn { transform: scale(1.1) translateY(-10px); box-shadow: 0 0 20px var(--accent-violet); border: 1px solid var(--accent-violet); z-index: 5; }
-        .enemy.targeted { outline: 3px dashed var(--accent-yellow); }
-        .unit-sprite { width: 60px; height: 60px; margin: 0 auto 0.5rem auto; transition: transform 0.1s ease; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5)); }
-        .unit-container:hover .unit-sprite { transform: scale(1.1); filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)); }
-        .hp-bar-container, .cp-bar-container { width: 70px; height: 6px; background-color: #4b5563; border-radius: 3px; overflow: hidden; margin: 0.25rem auto; border: 1px solid #111827; }
-        .hp-bar { height: 100%; background: linear-gradient(to right, #ef4444, #f59e0b, #22c55e); transition: width 0.3s ease; }
-        .cp-bar { height: 100%; background-color: var(--accent-blue); transition: width 0.3s ease; }
-        .status-effect-icons { position: absolute; top: -5px; left: 50%; transform: translateX(-50%); display: flex; gap: 2px; background-color: rgba(0,0,0,0.5); padding: 1px 3px; border-radius: 5px; z-index: 2; }
-        .status-effect { font-size: 0.7rem; animation: pulse-status 1.5s infinite ease-in-out; }
-        @keyframes pulse-status { 50% { opacity: 0.6; } }
-        #action-menu { padding: 1rem; background-color: var(--bg-light); border-radius: 0 0 0.5rem 0.5rem; }
-        .action-button { background-color: #4f46e5; color: white; border: none; padding: 0.5rem 0.8rem; margin: 0.25rem; border-radius: 0.25rem; cursor: pointer; transition: all 0.2s; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #4338ca; /* Indigo-700 */ }
-        .action-button:hover:not(:disabled) { background-color: #6366f1; transform: translateY(-1px); border-bottom-width: 3px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-        .action-button:active:not(:disabled) { transform: translateY(0px); border-bottom-width: 2px; }
-        .action-button:disabled { opacity: 0.4; cursor: not-allowed; background-color: #6b7280; border-bottom-color: #4b5563; }
-        #message-log { height: 65px; overflow-y: auto; background-color: var(--bg-dark); padding: 0.5rem; border-radius: 0.25rem; margin-top: 1rem; font-size: 0.75rem; border: 1px solid #4b5563; }
-        #message-log p { margin: 0 0 0.25rem 0; border-bottom: 1px dashed #374151; padding-bottom: 0.25rem; line-height: 1.4; }
-        /* Damage/Effect Text & Animations */
-        .effect-text { position: absolute; font-family: 'Orbitron', sans-serif; font-size: 1.2rem; font-weight: bold; text-shadow: 1px 1px 3px black; animation: floatUpAndFade 1.2s ease-out forwards; pointer-events: none; z-index: 10; }
-        .damage { color: var(--accent-red); } .weakness { color: var(--accent-yellow); font-style: italic; transform: scale(1.1); } .heal { color: var(--accent-green); } .cp-gain { color: var(--accent-blue); } .status { color: var(--accent-violet); }
-        @keyframes floatUpAndFade { 0% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-70px) scale(0.8); } }
-        @keyframes hit-shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
-        .hit { animation: hit-shake 0.3s ease-in-out; }
-        @keyframes fade-out-dissolve { 0% { opacity: 1; filter: blur(0) grayscale(0); transform: scale(1); } 100% { opacity: 0; filter: blur(5px) grayscale(1); transform: scale(0.5); } }
-        .defeated { animation: fade-out-dissolve 0.5s ease-in forwards; }
-        h1, h2, button, .character .font-semibold, .enemy .font-semibold { font-family: 'Orbitron', sans-serif; }
+        /* Canvas styling */
+        canvas { display: block; background-color: #000; border-radius: 0.25rem; cursor: default; width: 100%; height: auto; aspect-ratio: 1 / 1; }
+
+        /* Modal Styles */
+        .modal { position: fixed; inset: 0; background-color: rgba(0,0,0,0.75); display: flex; justify-content: center; align-items: center; z-index: 50; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0s linear 0.3s; }
+        .modal.show { opacity: 1; visibility: visible; transition: opacity 0.3s ease; }
+        .modal-content { background-color: var(--bg-med); color: var(--text-light); padding: 2rem; border-radius: 0.5rem; border: 1px solid var(--bg-light); max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; }
+        .modal-content h2 { font-family: 'Orbitron', sans-serif; font-size: 1.5rem; margin-bottom: 1rem; text-align: center; color: var(--accent-cyan); }
+        .modal-content h3 { font-family: 'Orbitron', sans-serif; font-size: 1.1rem; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--text-med); border-bottom: 1px solid var(--bg-light); padding-bottom: 0.25rem; }
+        .modal-content p, .modal-content li { font-size: 0.9rem; line-height: 1.6; color: var(--text-light); }
+        .modal-content ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+        .modal-content strong { color: var(--accent-yellow); }
+        .modal-content code { background-color: var(--bg-dark); padding: 0.1rem 0.4rem; border-radius: 0.2rem; font-size: 0.85rem; }
+        .modal-close-btn { display: block; margin: 1.5rem auto 0 auto; font-family: 'Orbitron'; background-color: var(--accent-cyan); color: var(--bg-dark); border: none; padding: 0.6rem 1.2rem; border-radius: 0.25rem; cursor: pointer; transition: background-color 0.2s; font-size: 0.9rem; }
+        .modal-close-btn:hover { background-color: #67e8f9; }
     </style>
 </head>
 <body>
-    <div id="game-container">
-        <div id="battle-area"> <div id="player-side"></div> <div id="enemy-side"></div> </div>
-        <div id="action-menu"> <div id="skill-buttons" class="flex flex-wrap justify-center"> <p class="w-full text-center text-sm text-gray-400">Select an active character to see actions.</p> </div> <div id="message-log"><p>Battle Initializing...</p></div> </div>
+
+    <div id="vis-container">
+         <div class="flex justify-between items-center mb-1">
+             <h1 class="text-xl font-bold font-['Orbitron']">QEC Visualizer</h1>
+             <button id="info-btn" class="text-sm bg-cyan-600 hover:bg-cyan-700 border-b-2 border-cyan-800 px-2 py-1 rounded">
+                 <i class="fas fa-info-circle mr-1"></i> Info
+             </button>
+         </div>
+        <p class="text-xs text-center text-slate-400 mb-4">Based on Nature doi:10.1038/s41586-024-08449-y</p>
+
+        <div id="top-panel">
+            <div class="panel-section">
+                <div class="control-group">
+                    <label for="p-rate-slider">Phys. Err Rate (p) [Err/Qubit/Sec] <span id="p-rate-value" class="value-display">0.005</span></label>
+                    <input type="range" id="p-rate-slider" min="0.0001" max="0.05" step="0.0001" value="0.005">
+                </div>
+                <div class="control-group">
+                    <label>Code Distance (d)</label>
+                    <div>
+                        <button id="dist-3" class="active" onclick="setDistance(3)">d=3</button>
+                        <button id="dist-5" onclick="setDistance(5)">d=5</button>
+                        <button id="dist-7" onclick="setDistance(7)">d=7</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                 <div class="control-group">
+                    <label>Decoder Type (sets p_thr)</label>
+                    <div class="mb-1">
+                        <button id="dec-basic" onclick="setDecoder('Basic')">Basic</button>
+                        <button id="dec-advanced" class="active" onclick="setDecoder('Advanced')">Advanced</button>
+                    </div>
+                     <div class="output-group text-xs">
+                        <div class="label inline-block mr-1">Error Threshold (p_thr):</div>
+                        <div id="p-thr-value" class="value inline-block">0.025</div>
+                    </div>
+                </div>
+                 <div class="control-group mt-2">
+                     <label>Simulation Actions</label>
+                     <div class="action-buttons">
+                         <button id="reset-errors-btn" class="flex-1 bg-orange-600 hover:bg-orange-700 border-b-2 border-orange-800 text-xs">Reset Errors</button>
+                         <button id="burst-btn" class="flex-1 bg-red-600 hover:bg-red-700 border-b-2 border-red-800 text-xs">Trigger Burst</button>
+                     </div>
+                 </div>
+            </div>
+
+            <div class="panel-section">
+                 <div class="output-group">
+                    <div class="label">Observed Error Fraction (p_obs)</div>
+                    <div id="p-observed" class="value">0.000</div>
+                </div>
+                 <div class="output-group">
+                    <div class="label">Threshold Status</div>
+                    <div id="threshold-status" class="value threshold-below">BELOW</div>
+                </div>
+                <div class="output-group">
+                    <div class="label">Suppression Factor (Λ ≈ p_thr/p_obs)</div>
+                    <div id="lambda-value" class="value lambda-good">~?.??</div>
+                </div>
+                <div class="output-group">
+                    <div class="label">Logical Error Prob. (E_L)</div>
+                    <div id="e-logical" class="value el-low">~0.0e-0</div>
+                </div>
+                 <div class="reference-text mt-2">Paper Result (d=7): E_L ≈ 0.14%</div>
+            </div>
+
+        </div>
+
+        <canvas id="qubitCanvas"></canvas>
+
     </div>
-    <div id="game-over-screen" class="fixed inset-0 bg-black bg-opacity-75 flex flex-col justify-center items-center hidden z-50"> <h2 id="game-over-title" class="text-4xl font-bold mb-4">Logical Error!</h2> <p id="game-over-message" class="text-xl mb-6">The quantum state decohered.</p> <button id="restart-btn" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded text-lg">Restart Battle</button> </div>
+
+     <div id="info-modal" class="modal">
+        <div class="modal-content">
+            <h2>About This Visualizer</h2>
+            <p>This visualizer demonstrates key concepts from quantum error correction (QEC), inspired by the Nature paper on below-threshold surface codes.</p>
+
+            <h3>Visuals</h3>
+            <ul>
+                <li><strong>Qubits (Circles):</strong> Represent individual physical qubits.</li>
+                <li><strong class="text-red-400">X Error:</strong> A bit-flip error marker.</li>
+                <li><strong class="text-violet-400">Z Error:</strong> A phase-flip error marker.</li>
+                <li><strong class="text-orange-400">L Error:</strong> A leakage error marker (to non-computational state).</li>
+            </ul>
+
+            <h3>Controls</h3>
+            <ul>
+                <li><strong>Phys. Err Rate (p) [Err/Qubit/Sec]:</strong> Sets the average rate (probability per second) at which a random error appears on any single qubit. Higher <code>p</code> means more noise.</li>
+                <li><strong>Code Distance (d):</strong> Represents the scale of the QEC code. Higher <code>d</code> uses more physical qubits (not shown here) for potentially better protection.</li>
+                <li><strong>Decoder Type:</strong> Simulates decoder quality. 'Advanced' decoders have a higher error threshold (<code>p_thr</code>) they can tolerate.</li>
+                <li><strong>Reset Errors:</strong> Clears current error markers.</li>
+                <li><strong>Trigger Burst:</strong> Simulates a rare, correlated noise event causing a cluster of errors.</li>
+            </ul>
+
+            <h3>Outputs</h3>
+            <ul>
+                <li><strong>Error Threshold (p_thr):</strong> The maximum physical error *fraction* the selected Decoder can handle effectively. Unitless probability.</li>
+                <li><strong>Observed Error Fraction (p_obs):</strong> The current *fraction* (percentage) of visualized qubits showing an error marker. Unitless probability.</li>
+                <li><strong>Threshold Status:</strong> Shows if <code>p_obs</code> is currently <strong>BELOW</strong> (good!) or <strong>ABOVE</strong> (bad!) the decoder's <code>p_thr</code>.</li>
+                <li><strong>Suppression Factor (Λ):</strong> Pronounced "Lambda". Calculated as <code>Λ ≈ p_thr / p_obs</code>. When BELOW threshold, <code>Λ > 1</code> indicates errors are suppressed. Higher <code>Λ</code> means increasing distance <code>d</code> will be more effective (errors reduce faster). Unitless factor.</li>
+                <li><strong>Logical Error Prob. (E_L):</strong> The estimated *probability* that the overall logical qubit fails per unit time/cycle. Calculated as <code>E_L ≈ (p_obs / p_thr)^((d+1)/2)</code>. Lower is better! Unitless probability.</li>
+            </ul>
+            <p><strong>Key Takeaway:</strong> QEC provides exponential improvement (rapidly falling <code>E_L</code> with increasing <code>d</code>) only when the physical system is good enough (<code>p_obs < p_thr</code>). Experiment to see these relationships!</p>
+            <button id="info-close-btn" class="modal-close-btn">Close</button>
+        </div>
+    </div>
+
 
     <script>
-        // --- Game Configuration ---
-        const MAX_LOG_MESSAGES = 10;
-        const PLAYER_TEAM_CONFIG = [ /* ... Player team config ... */
-            { id: 'lq1', name: 'Logical Qubit', type: 'LQ', hp: 150, maxHp: 150, cp: 0, maxCp: 0, speed: 5, svg: 'lq_svg', skills: [], description: "The core quantum state. Must be protected!" },
-            { id: 'dec1', name: 'Matcher', type: 'DEC', hp: 60, maxHp: 60, cp: 40, maxCp: 40, speed: 10, svg: 'dec_svg', skills: ['analyze', 'correct_x', 'correct_z'], description: "Basic decoder, good at standard corrections." },
-            { id: 'stab1', name: 'Stabilizer', type: 'STAB', hp: 50, maxHp: 50, cp: 50, maxCp: 50, speed: 8, svg: 'stab_svg', skills: ['analyze', 'pinpoint', 'expose_weakness'], description: "Analyzes errors and identifies weaknesses." },
-            { id: 'dqlr1', name: 'Purifier', type: 'DQLR', hp: 55, maxHp: 55, cp: 45, maxCp: 45, speed: 7, svg: 'dqlr_svg', skills: ['purge_leakage', 'restore_coherence'], description: "Specializes in removing Leakage and restoring stability." }
-        ];
-        const ENEMY_TYPES = { /* ... Enemy types config ... */
-            'X': { name: 'X-Flip Glitch', hp: 30, speed: 9, svg: 'x_err_svg', attacks: [{ type: 'damage', power: 10, target: 'lq' }], weakness: 'Z', resistance: 'X', description: "A basic bit-flip error." },
-            'Z': { name: 'Z-Phase Warp', hp: 30, speed: 9, svg: 'z_err_svg', attacks: [{ type: 'damage', power: 10, target: 'lq' }], weakness: 'X', resistance: 'Z', description: "A basic phase-flip error." },
-            'L': { name: 'Leakage Phantom', hp: 50, speed: 6, svg: 'l_err_svg', attacks: [{ type: 'status', effect: 'decohere', duration: 3, target: 'lq' }, { type: 'buff', effect: 'empower', target: 'allies' }], weakness: 'DQLR', resistance: null, description: "Drains stability and empowers other errors. Weak to Purging." },
-            'C': { name: 'Correlated Noise', hp: 80, speed: 5, svg: 'c_err_svg', attacks: [{ type: 'damage', power: 18, target: 'lq' }, { type: 'summon', enemyType: ['X', 'Z'], count: 1, target: 'self' }], weakness: null, resistance: null, description: "A complex error source, can summon basic errors." }
-        };
-        const SKILLS = { /* ... Skills config ... */
-            'analyze': { name: 'Analyze', cost: 2, target: 'enemy', effect: 'analyze', power: 0, description: "Scan error: reveals HP & status.", anim: 'scan' },
-            'correct_x': { name: 'Correct X', cost: 5, target: 'enemy', effect: 'damage', power: 18, type: 'X', description: "Corrects X-type errors. Weak vs Z.", anim: 'beam_red' },
-            'correct_z': { name: 'Correct Z', cost: 5, target: 'enemy', effect: 'damage', power: 18, type: 'Z', description: "Corrects Z-type errors. Weak vs X.", anim: 'beam_violet' },
-            'purge_leakage': { name: 'Purge Leakage', cost: 8, target: 'enemy', effect: 'damage', power: 30, type: 'DQLR', description: "Effective vs Leakage Phantoms.", anim: 'cleanse_yellow' },
-            'restore_coherence': { name: 'Restore Stability', cost: 10, target: 'ally', effect: 'heal', power: 30, type: 'DQLR', description: "Restores Stability (HP).", anim: 'heal_green' },
-            'pinpoint': { name: 'Pinpoint', cost: 6, target: 'enemy', effect: 'status', statusType: 'measured', duration: 3, power: 0.5, description: "Mark error as 'Measured', lowering defense.", anim: 'target_lock' }, // Measured power = defense multiplier increase
-            'expose_weakness': { name: 'Expose Weakness', cost: 7, target: 'enemy', effect: 'reveal_weakness', power: 0, description: "Reveal error's weakness/resistance.", anim: 'scan_detailed' },
-        };
-        const WEAKNESS_CP_REFUND = 3; // Increased CP refund
+        // --- Config ---
+        const NUM_QUBITS_VISUALIZED = 100;
+        const GRID_SIZE = Math.ceil(Math.sqrt(NUM_QUBITS_VISUALIZED));
+        const DECODER_THRESHOLDS = { 'Basic': 0.010, 'Advanced': 0.025 };
+        const BURST_RADIUS_FACTOR = 0.15; const BURST_ERROR_PROB = 0.8;
 
-        // --- SVG Definitions ---
-        const SVG_SPRITES = { /* ... SVG strings ... */
-            'lq_svg': `<svg viewBox="0 0 100 100"><defs><radialGradient id="gradLQ" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#a5f3fc" stop-opacity="1"/><stop offset="100%" stop-color="#60a5fa" stop-opacity="1"/></radialGradient></defs><circle cx="50" cy="50" r="40" fill="url(#gradLQ)"/><circle cx="50" cy="50" r="45" fill="none" stroke="#a5f3fc" stroke-width="3" stroke-dasharray="5 5"><animate attributeName="stroke-dashoffset" values="0;100" dur="5s" repeatCount="indefinite"/></circle></svg>`,
-            'dec_svg': `<svg viewBox="0 0 100 100"><path d="M50 10 L90 50 L50 90 L10 50 Z" fill="#a78bfa" stroke="#c4b5fd" stroke-width="3"/><path d="M50 20 L80 50 L50 80 L20 50 Z" fill="none" stroke="#1f2937" stroke-width="2"/></svg>`,
-            'stab_svg': `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="30" fill="none" stroke="#34d399" stroke-width="5"/><path d="M50 10 V30 M50 70 V90 M10 50 H30 M70 50 H90" stroke="#34d399" stroke-width="5"/><circle cx="50" cy="50" r="10" fill="#34d399"/></svg>`,
-            'dqlr_svg': `<svg viewBox="0 0 100 100"><path d="M20 80 A 40 40 0 0 1 80 80 L 50 20 Z" fill="#fbbf24" stroke="#fcd34d" stroke-width="3"/><path d="M35 75 A 20 20 0 0 1 65 75 L 50 40 Z" fill="none" stroke="#1f2937" stroke-width="2"/></svg>`,
-            'x_err_svg': `<svg viewBox="0 0 100 100"><path d="M20 20 L80 80 M80 20 L20 80" stroke="#f43f5e" stroke-width="12" stroke-linecap="round"/><path d="M25 25 L75 75 M75 25 L25 75" stroke="#fecdd3" stroke-width="4" stroke-linecap="round"/></svg>`,
-            'z_err_svg': `<svg viewBox="0 0 100 100"><path d="M20 25 H80 L20 75 H80" stroke="#8b5cf6" stroke-width="12" fill="none" stroke-linejoin="round" stroke-linecap="round"/><path d="M25 30 H75 L25 70 H75" stroke="#ddd6fe" stroke-width="4" fill="none" stroke-linejoin="round" stroke-linecap="round"/></svg>`,
-            'l_err_svg': `<svg viewBox="0 0 100 100"><path d="M50 10 C 20 30, 20 70, 50 90 C 80 70, 80 30, 50 10 Z" fill="#f59e0b" opacity="0.7"/><path d="M50 20 C 30 40, 30 60, 50 80 C 70 60, 70 40, 50 20 Z" fill="#1f2937" opacity="0.8"/></svg>`,
-            'c_err_svg': `<svg viewBox="0 0 100 100"><circle cx="35" cy="35" r="20" fill="#ef4444"/><circle cx="65" cy="65" r="20" fill="#ef4444"/><path d="M45 45 L55 55" stroke="#f87171" stroke-width="8"/><circle cx="35" cy="35" r="25" stroke="#f87171" stroke-width="4" fill="none"/><circle cx="65" cy="65" r="25" stroke="#f87171" stroke-width="4" fill="none"/></svg>`
-         };
-
-        // --- Game State ---
-        let playerTeam = []; let enemies = []; let turnOrder = [];
-        let currentTurnIndex = 0; let selectedCharacterId = null; let selectedSkill = null; let selectedTargetId = null;
-        let messageLog = []; let gameOver = false;
+        // --- State ---
+        let physicalErrorRateP = 0.005; let distanceD = 3; let selectedDecoder = 'Advanced';
+        let pThreshold = DECODER_THRESHOLDS[selectedDecoder]; let qubits = [];
+        let observedP = 0; let logicalErrorRateEL = 0; let suppressionFactorLambda = 0;
+        let animationFrameId; let soundEnabled = false; let burstActive = false;
 
         // --- DOM Elements ---
-        const playerSideEl = document.getElementById('player-side'); const enemySideEl = document.getElementById('enemy-side');
-        const skillButtonsEl = document.getElementById('skill-buttons'); const messageLogEl = document.getElementById('message-log');
-        const gameOverScreen = document.getElementById('game-over-screen'); const gameOverTitle = document.getElementById('game-over-title');
-        const gameOverMessage = document.getElementById('game-over-message'); const restartBtn = document.getElementById('restart-btn');
+        const canvas = document.getElementById('qubitCanvas'); const ctx = canvas.getContext('2d');
+        const pRateSlider = document.getElementById('p-rate-slider'); const pRateValueEl = document.getElementById('p-rate-value');
+        const pThrValueEl = document.getElementById('p-thr-value'); const pObservedEl = document.getElementById('p-observed');
+        const eLogicalEl = document.getElementById('e-logical'); const lambdaValueEl = document.getElementById('lambda-value');
+        const thresholdStatusEl = document.getElementById('threshold-status');
+        const distButtons = { 3: document.getElementById('dist-3'), 5: document.getElementById('dist-5'), 7: document.getElementById('dist-7') };
+        const decoderButtons = { 'Basic': document.getElementById('dec-basic'), 'Advanced': document.getElementById('dec-advanced') };
+        const resetErrorsBtn = document.getElementById('reset-errors-btn'); const burstBtn = document.getElementById('burst-btn');
+        const infoModal = document.getElementById('info-modal'); const infoBtn = document.getElementById('info-btn'); const infoCloseBtn = document.getElementById('info-close-btn');
 
-        // --- Sound Initialization ---
-        let soundEnabled = false; let synth, noiseSynth; // Add more as needed
-        function setupSounds() { /* ... */ synth = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 } }).toDestination(); noiseSynth = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.005, decay: 0.05, sustain: 0 } }).toDestination(); console.log("Audio context started."); soundEnabled = true; }
-        function playSound(type) { /* ... */ if (!soundEnabled) return; try { const now = Tone.now(); switch(type) { case 'select': synth.triggerAttackRelease('C5', '32n', now); break; case 'confirm': synth.triggerAttackRelease('E5', '16n', now); break; case 'cancel': synth.triggerAttackRelease('C4', '16n', now); break; case 'player_attack': noiseSynth.triggerAttackRelease('8n', now); synth.triggerAttackRelease('A4', '8n', now + 0.01); break; case 'enemy_attack': noiseSynth.triggerAttackRelease('8n', now + 0.05); synth.triggerAttackRelease('D3', '8n', now + 0.06); break; case 'heal': synth.triggerAttackRelease('C6', '8n', now); break; case 'buff': synth.triggerAttackRelease('E5', '16n', now); synth.triggerAttackRelease('G5', '16n', now + 0.1); break; case 'debuff': synth.triggerAttackRelease('F#3', '8n', now); break; case 'weakness_hit': synth.triggerAttackRelease('B5', '8n', now); noiseSynth.triggerAttackRelease('16n', now + 0.02); break; case 'error_defeated': noiseSynth.triggerAttackRelease('4n', now); synth.triggerAttackRelease('C3', '4n', now + 0.05); break; case 'game_over': noiseSynth.triggerAttackRelease('1n', now); synth.triggerAttackRelease('A1', '1n', now); break; case 'battle_start': synth.triggerAttackRelease('C4', '8n'); synth.triggerAttackRelease('E4', '8n', now+0.2); synth.triggerAttackRelease('G4', '8n', now+0.4); break; } } catch (e) { console.error("Sound playback error:", e); } }
-        function initAudio() { /* ... */ if (!soundEnabled && Tone.context.state !== 'running') { Tone.start().then(setupSounds); } else if (!soundEnabled && Tone.context.state === 'running') { setupSounds(); } window.removeEventListener('click', initAudio); window.removeEventListener('keydown', initAudio); }
-        window.addEventListener('click', initAudio, { once: true }); window.addEventListener('keydown', initAudio, { once: true });
-
-
-        // --- Game Logic Functions ---
-
-        function startGame() { /* ... reset state ... */
-            gameOver = false; gameOverScreen.classList.add('hidden'); gameOverScreen.classList.remove('show'); messageLog = []; logMessage("Quantum Battle Initialized!");
-            playerTeam = JSON.parse(JSON.stringify(PLAYER_TEAM_CONFIG));
-            enemies = [ createEnemy('X'), createEnemy('Z'), createEnemy('L') ]; if (Math.random() < 0.2) enemies.push(createEnemy('X'));
-            setupTurnOrder(); currentTurnIndex = -1; selectedCharacterId = null; selectedSkill = null; selectedTargetId = null;
-            drawBattleState(); updateActionMenu(); playSound('battle_start');
-            // Use requestAnimationFrame for smoother turn transition check
-            requestAnimationFrame(nextTurn); // Start the first turn
-        }
-
-        function createEnemy(type) { /* ... */ const base = ENEMY_TYPES[type]; if (!base) return null; return { ...JSON.parse(JSON.stringify(base)), id: `enemy_${type}_${Math.random().toString(16).slice(2)}`, currentHp: base.hp, statusEffects: [] }; }
-        function setupTurnOrder() { /* ... */ turnOrder = [...playerTeam, ...enemies].sort((a, b) => b.speed - a.speed); console.log("Turn order:", turnOrder.map(u => u.name)); }
-        function getCurrentUnit(index = currentTurnIndex) { /* ... */ if (gameOver || turnOrder.length === 0) return null; return turnOrder[index % turnOrder.length]; }
-
-        function nextTurn() {
-            if (gameOver) return;
-            console.log(`Entering nextTurn. Current index: ${currentTurnIndex}`);
-
-            // --- Pre-Turn Processing ---
-            const previousUnit = getCurrentUnit(); // Unit from *previous* index
-            if (previousUnit) {
-                 const prevUnitEl = document.getElementById(previousUnit.id);
-                 if (prevUnitEl) prevUnitEl.classList.remove('active-turn');
-            }
-            selectedCharacterId = null; selectedSkill = null; selectedTargetId = null; // Clear selections
-
-            applyStatusEffects(); // Apply DoTs, check durations
-
-            // --- Check Win/Loss Conditions ---
-            if (enemies.length === 0) { endGame(true, "All errors corrected!"); return; }
-            const lq = playerTeam.find(c => c.type === 'LQ');
-            if (!lq || lq.hp <= 0) { endGame(false, "Logical Qubit Decohered!"); return; }
-
-            // --- Advance Turn ---
-            currentTurnIndex++;
-            if (currentTurnIndex >= turnOrder.length) {
-                currentTurnIndex = 0;
-                logMessage("--- New Round ---");
-                playerTeam.forEach(p => { if(p.type !== 'LQ') p.cp = Math.min(p.maxCp, p.cp + 5); }); // CP Regen
-                 // Re-sort turn order potentially? For now, keep it fixed per battle.
-            }
-
-            // --- Get Current Unit & Validate ---
-            const currentUnit = getCurrentUnit();
-            if (!currentUnit) {
-                 console.error("CRITICAL: Could not get current unit!", currentTurnIndex, turnOrder);
-                 logMessage("Error: Turn desynchronized!");
-                 // Attempt to recover by resetting index?
-                 currentTurnIndex = 0;
-                 requestAnimationFrame(nextTurn); // Try again immediately
-                 return;
-            }
-
-            // Check if the unit that's supposed to act still exists
-            const unitStillExists = playerTeam.some(p => p.id === currentUnit.id) || enemies.some(e => e.id === currentUnit.id);
-            if (!unitStillExists) {
-                console.log(`Unit ${currentUnit.id} (${currentUnit.name}) was defeated before its turn. Skipping.`);
-                // Don't increment index again, just call nextTurn to process the *next* index
-                requestAnimationFrame(nextTurn);
-                return;
-            }
-
-            // --- Process Turn ---
-            logMessage(`Turn: ${currentUnit.name}`);
-            const activeUnitEl = document.getElementById(currentUnit.id);
-            if (activeUnitEl) activeUnitEl.classList.add('active-turn');
-
-            if (playerTeam.some(p => p.id === currentUnit.id)) { // Player Turn
-                selectedCharacterId = currentUnit.id;
-                updateActionMenu(); // Enable actions for this player unit
-            } else { // Enemy Turn
-                updateActionMenu(); // Disable player actions
-                setTimeout(enemyAI, 1200); // Delay for enemy action
-            }
-            drawBattleState();
-            console.log(`Exiting nextTurn for ${currentUnit.name}`);
-        }
-
-
-        function applyStatusEffects() { /* ... same logic, ensure drawBattleState is called if HP changes ... */
-             let hpChanged = false;
-             [...playerTeam, ...enemies].forEach(unit => {
-                 unit.statusEffects = unit.statusEffects?.filter(effect => {
-                     let effectExpired = false;
-                     switch(effect.effect) {
-                         case 'decohere':
-                             const lq = playerTeam.find(c => c.type === 'LQ');
-                             if (lq && lq.hp > 0) {
-                                 const damage = Math.max(1, Math.floor(lq.maxHp * 0.05));
-                                 lq.hp = Math.max(0, lq.hp - damage); hpChanged = true;
-                                 logMessage(`${unit.name}'s ${effect.effect} damages LQ for ${damage} Stability!`); showEffectText(lq.id, `-${damage}`, 'damage');
-                             } break;
-                     }
-                     effect.duration--;
-                     if(effect.duration <= 0) { logMessage(`${unit.name}'s ${effect.effect} effect wore off.`); effectExpired = true; }
-                     return !effectExpired;
-                 }) || [];
-             });
-             if (hpChanged) drawBattleState(); // Redraw only if HP changed
-        }
-
-        function enemyAI() { /* ... same logic, ensure nextTurn is scheduled via requestAnimationFrame ... */
-             if (gameOver) return;
-             const enemy = getCurrentUnit();
-             if (!enemy || playerTeam.some(p => p.id === enemy.id)) { console.warn("Enemy AI called, but not enemy turn?"); requestAnimationFrame(nextTurn); return; }
-             if (!enemies.some(e => e.id === enemy.id)) { console.log(`Enemy ${enemy.name} defeated before action.`); requestAnimationFrame(nextTurn); return; }
-
-             const availableAttacks = enemy.attacks; if (!availableAttacks || availableAttacks.length === 0) { logMessage(`${enemy.name} hesitates.`); requestAnimationFrame(nextTurn); return; }
-             const attack = availableAttacks[Math.floor(Math.random() * availableAttacks.length)]; let target = null;
-             // Targeting logic...
-             if (attack.target === 'lq') { target = playerTeam.find(c => c.type === 'LQ'); }
-             else if (attack.target === 'random_player') { const pTargets = playerTeam.filter(p => p.hp > 0); if (pTargets.length > 0) target = pTargets[Math.floor(Math.random() * pTargets.length)]; }
-             else if (attack.target === 'self') { target = enemy; }
-             else if (attack.target === 'allies') { logMessage(`${enemy.name} empowers allies!`); playSound('buff'); requestAnimationFrame(nextTurn); return; }
-             else if (attack.type === 'summon') { /* Summon logic ... */ for (let i=0; i < attack.count; i++) { const typeToSummon = attack.enemyType[Math.floor(Math.random() * attack.enemyType.length)]; const newEnemy = createEnemy(typeToSummon); if (newEnemy && enemies.length < 4) { enemies.push(newEnemy); logMessage(`${enemy.name} summons a ${newEnemy.name}!`); turnOrder.push(newEnemy); } } drawBattleState(); requestAnimationFrame(nextTurn); return; }
-
-             if (target && target.hp > 0) {
-                 logMessage(`${enemy.name} uses ${attack.type || attack.effect} on ${target.name}.`); playSound('enemy_attack');
-                 animateAttack(enemy.id, target.id, 'enemy');
-                 executeAction(enemy, attack, target);
-             } else { logMessage(`${enemy.name} finds no valid target.`); }
-
-             requestAnimationFrame(nextTurn); // Use rAF instead of setTimeout
-        }
-
-        function confirmAction() { /* ... ensure nextTurn is scheduled via requestAnimationFrame ... */
-            playSound('confirm');
-            const character = playerTeam.find(c => c.id === selectedCharacterId);
-            const skill = SKILLS[selectedSkill];
-            const target = turnOrder.find(u => u.id === selectedTargetId);
-
-            if (character && skill && target && character.cp >= skill.cost) {
-                character.cp -= skill.cost;
-                logMessage(`${character.name} uses ${skill.name} on ${target.name}!`); playSound('player_attack');
-                animateAttack(character.id, target.id, 'player', skill.anim);
-                executeAction(character, skill, target);
-
-                selectedSkill = null; selectedTargetId = null;
-                updateActionMenu(); // Disable buttons
-                drawBattleState();
-                requestAnimationFrame(nextTurn); // Use rAF
-            } else { /* ... cancel logic ... */ logMessage("Action failed."); playSound('cancel'); selectedSkill = null; selectedTargetId = null; updateActionMenu(); drawBattleState(); }
-        }
-
-
-        function executeAction(source, action, target) { /* ... weakness refund logic ... */
-             let damage = 0; let effectApplied = false; let hitWeakness = false; let cpRefund = 0;
-             let powerMultiplier = 1.0; source.statusEffects?.forEach(eff => { if (eff.effect === 'empower') powerMultiplier *= 1.5; });
-             let defenseMultiplier = 1.0; target.statusEffects?.forEach(eff => { if (eff.effect === 'defense_down' || eff.effect === 'measured') defenseMultiplier *= (1 + (eff.power || 0.5)); });
-
-             switch(action.effect) {
-                 case 'damage':
-                     damage = Math.floor(action.power * powerMultiplier * defenseMultiplier);
-                     const targetInfo = ENEMY_TYPES[target.type];
-                     if (targetInfo) {
-                         if (targetInfo.weakness === action.type) { damage = Math.floor(damage * 1.6); hitWeakness = true; logMessage("Weakness hit!"); playSound('weakness_hit'); cpRefund = WEAKNESS_CP_REFUND; }
-                         else if (targetInfo.resistance === action.type) { damage = Math.floor(damage * 0.5); logMessage("Resisted!"); }
-                     }
-                     target.hp = Math.max(0, target.hp - damage);
-                     logMessage(`${target.name} takes ${damage} damage.`); showEffectText(target.id, `-${damage}`, 'damage' + (hitWeakness ? ' weakness' : '')); animateHit(target.id);
-                     if (target.hp <= 0) { handleDefeat(target); }
-                     break;
-                 case 'heal': const healAmount = Math.floor(action.power * powerMultiplier); target.hp = Math.min(target.maxHp, target.hp + healAmount); logMessage(`${target.name} recovers ${healAmount} Stability.`); playSound('heal'); showEffectText(target.id, `+${healAmount}`, 'heal'); break;
-                 case 'status': const statusType = action.statusType || action.effect; target.statusEffects = target.statusEffects?.filter(eff => eff.effect !== statusType) || []; target.statusEffects.push({ effect: statusType, duration: action.duration, power: action.power }); logMessage(`${target.name} is affected by ${statusType}!`); playSound(statusType === 'empower' ? 'buff' : 'debuff'); showEffectText(target.id, `${statusType.toUpperCase()}!`, 'status'); effectApplied = true; break;
-                 case 'reveal_weakness': const enemyTypeInfoW = ENEMY_TYPES[target.type]; if (enemyTypeInfoW) { logMessage(`${target.name} Weak: ${enemyTypeInfoW.weakness || 'N/A'}. Res: ${enemyTypeInfoW.resistance || 'N/A'}.`); showEffectText(target.id, `Weak: ${enemyTypeInfoW.weakness || 'N/A'}`, 'status'); } else { logMessage(`Analysis failed.`); } playSound('buff'); effectApplied = true; break;
-                 case 'analyze': logMessage(`${target.name} HP: ${target.hp}/${target.maxHp}`); showEffectText(target.id, `HP ${target.hp}/${target.maxHp}`, 'status'); playSound('buff'); effectApplied = true; break;
-             }
-             if (hitWeakness && playerTeam.some(p => p.id === source.id)) { source.cp = Math.min(source.maxCp, source.cp + cpRefund); logMessage(`${source.name} recovers ${cpRefund} CP!`); showEffectText(source.id, `+${cpRefund} CP`, 'cp-gain'); }
-             drawBattleState();
-        }
-
-        function handleDefeat(unit) {
-            logMessage(`${unit.name} is corrected!`);
-            playSound('error_defeated');
-            showEffectText(unit.id, 'Corrected!', 'heal');
-
-            const unitElement = document.getElementById(unit.id);
-            if (unitElement) {
-                unitElement.classList.add('defeated'); // Apply animation class
-                // Remove the unit from the *logic* immediately
-                const wasEnemy = enemies.some(e => e.id === unit.id);
-                if (wasEnemy) {
-                    enemies = enemies.filter(e => e.id !== unit.id);
-                } else {
-                     // Handle player defeat? For now, only LQ defeat matters for game over.
-                }
-                // Remove from turn order *after* current turn potentially finishes
-                // Let nextTurn handle skipping if the unit is gone
-                // Remove the element after animation
-                 setTimeout(() => {
-                     unitElement.remove();
-                     // Maybe rebuild turn order here if needed? Or let nextTurn handle it.
-                     // Rebuilding turn order mid-round can be complex.
-                     // Let's try letting nextTurn skip the defeated unit.
-                 }, 500); // Match defeat animation duration
-            } else {
-                 // Failsafe if element not found
-                 enemies = enemies.filter(e => e.id !== unit.id);
-                 // Consider rebuilding turn order here too
-                 setupTurnOrder(); // Rebuild if element wasn't found
-                 drawBattleState();
-            }
-        }
-
-
-        function showEffectText(targetId, text, typeClass = 'damage') { /* ... */ const targetElement = document.getElementById(targetId); if (!targetElement) return; const effectEl = document.createElement('div'); effectEl.className = `effect-text ${typeClass}`; effectEl.textContent = text; document.getElementById('battle-area').appendChild(effectEl); const rect = targetElement.getBoundingClientRect(); const containerRect = document.getElementById('battle-area').getBoundingClientRect(); effectEl.style.left = `${rect.left - containerRect.left + rect.width / 2}px`; effectEl.style.top = `${rect.top - containerRect.top}px`; setTimeout(() => { effectEl.remove(); }, 1200); }
-        function logMessage(message) { /* ... */ console.log(message); messageLog.push(message); if (messageLog.length > MAX_LOG_MESSAGES * 2) { messageLog.shift(); } const logHtml = messageLog.slice(-MAX_LOG_MESSAGES).map(m => `<p>${m}</p>`).join(''); messageLogEl.innerHTML = logHtml; messageLogEl.scrollTop = messageLogEl.scrollHeight; }
-
-        // --- Drawing & Animation Functions ---
-        function drawBattleState() { /* ... */ playerSideEl.innerHTML = ''; playerTeam.forEach(p => playerSideEl.appendChild(createUnitElement(p, true))); enemySideEl.innerHTML = ''; enemies.forEach(e => enemySideEl.appendChild(createUnitElement(e, false))); document.querySelectorAll('.enemy, .character').forEach(el => el.classList.remove('targeted')); if (selectedSkill && selectedTargetId) { const targetEl = document.getElementById(selectedTargetId); if (targetEl) targetEl.classList.add('targeted'); } else if (selectedSkill) { const skillInfo = SKILLS[selectedSkill]; const potentialTargets = turnOrder.filter(unit => { if (skillInfo.target === 'enemy') return enemies.some(e => e.id === unit.id); if (skillInfo.target === 'ally') return playerTeam.some(p => p.id === unit.id); if (skillInfo.target === 'self') return unit.id === selectedCharacterId; return false; }); potentialTargets.forEach(unit => { const el = document.getElementById(unit.id); if (el) el.classList.add('targeted'); }); } const currentUnit = getCurrentUnit(); if (currentUnit) { const activeUnitEl = document.getElementById(currentUnit.id); if (activeUnitEl) activeUnitEl.classList.add('active-turn'); } }
-        function createUnitElement(unit, isPlayer) { /* ... Use SVG_SPRITES map ... */ const container = document.createElement('div'); container.className = 'unit-container'; container.id = unit.id; const div = document.createElement('div'); div.className = `unit ${isPlayer ? 'character' : 'enemy'} ${isPlayer ? 'char-' + unit.type : 'enemy-' + unit.type}`; if (!isPlayer) { div.onclick = () => { if(selectedSkill) selectTarget(unit.id); }; div.style.cursor = selectedSkill ? 'pointer' : 'default'; } else { div.onclick = () => { if(selectedSkill && SKILLS[selectedSkill].target === 'ally') selectTarget(unit.id); }; div.style.cursor = (selectedSkill && SKILLS[selectedSkill].target === 'ally') ? 'pointer' : 'default'; } const spriteDiv = document.createElement('div'); spriteDiv.className = 'unit-sprite'; spriteDiv.innerHTML = SVG_SPRITES[unit.svg || (isPlayer ? 'lq_svg' : 'x_err_svg')]; div.appendChild(spriteDiv); const name = document.createElement('div'); name.className = 'text-sm font-semibold'; name.textContent = unit.name; div.appendChild(name); const hpContainer = document.createElement('div'); hpContainer.className = 'hp-bar-container'; const hpBar = document.createElement('div'); hpBar.className = 'hp-bar'; hpBar.style.width = `${Math.max(0, (unit.hp / unit.maxHp) * 100)}%`; hpContainer.appendChild(hpBar); div.appendChild(hpContainer); const hpText = document.createElement('div'); hpText.className = 'text-xs text-gray-400'; hpText.textContent = `${unit.hp}/${unit.maxHp}`; div.appendChild(hpText); if (isPlayer && unit.type !== 'LQ') { const cpContainer = document.createElement('div'); cpContainer.className = 'cp-bar-container'; const cpBar = document.createElement('div'); cpBar.className = 'cp-bar'; cpBar.style.width = `${Math.max(0, (unit.cp / unit.maxCp) * 100)}%`; cpContainer.appendChild(cpBar); div.appendChild(cpContainer); const cpText = document.createElement('div'); cpText.className = 'text-xs text-gray-400'; cpText.textContent = `${unit.cp}/${unit.maxCp}`; div.appendChild(cpText); } const statusIconsContainer = document.createElement('div'); statusIconsContainer.className = 'status-effect-icons'; unit.statusEffects?.forEach(eff => { const statusIcon = document.createElement('i'); let iconClass = ''; let colorClass = ''; switch(eff.effect) { case 'decohere': iconClass = 'fa-arrow-trend-down'; colorClass = 'text-red-500'; break; case 'defense_down': case 'measured': iconClass = 'fa-shield-slash'; colorClass = 'text-yellow-500'; break; case 'empower': iconClass = 'fa-bolt'; colorClass = 'text-blue-400'; break; } if (iconClass) { statusIcon.className = `fas ${iconClass} ${colorClass} status-effect`; statusIcon.title = `${eff.effect} (${eff.duration} turns left)`; statusIconsContainer.appendChild(statusIcon); } }); container.appendChild(statusIconsContainer); container.appendChild(div); return container; }
-        function updateActionMenu() { /* ... remains the same ... */ skillButtonsEl.innerHTML = ''; const character = playerTeam.find(c => c.id === selectedCharacterId); if (character && character.type !== 'LQ') { character.skills.forEach(skillId => { const skill = SKILLS[skillId]; if (!skill) return; const button = document.createElement('button'); button.className = 'action-button'; button.textContent = `${skill.name} (${skill.cost} CP)`; button.disabled = character.cp < skill.cost || !!selectedSkill; button.onclick = () => selectSkill(skillId); skillButtonsEl.appendChild(button); }); if (selectedSkill && selectedTargetId) { const confirmBtn = document.createElement('button'); confirmBtn.className = 'action-button bg-green-600 hover:bg-green-700'; confirmBtn.textContent = 'Confirm'; confirmBtn.onclick = confirmAction; skillButtonsEl.appendChild(confirmBtn); const cancelBtn = document.createElement('button'); cancelBtn.className = 'action-button bg-gray-500 hover:bg-gray-600'; cancelBtn.textContent = 'Cancel'; cancelBtn.onclick = () => { playSound('cancel'); selectedSkill = null; selectedTargetId = null; updateActionMenu(); drawBattleState(); logMessage("Action cancelled."); }; skillButtonsEl.appendChild(cancelBtn); } else if (selectedSkill) { skillButtonsEl.innerHTML = `<p class="w-full text-center text-sm text-yellow-400">Select Target for ${SKILLS[selectedSkill].name}...</p>`; const cancelBtn = document.createElement('button'); cancelBtn.className = 'action-button bg-gray-500 hover:bg-gray-600'; cancelBtn.textContent = 'Cancel Skill'; cancelBtn.onclick = () => { playSound('cancel'); selectedSkill = null; updateActionMenu(); drawBattleState(); logMessage("Skill cancelled."); }; skillButtonsEl.appendChild(cancelBtn); } } else { skillButtonsEl.innerHTML = '<p class="w-full text-center text-sm text-gray-400">Waiting for turn...</p>'; } }
-        function animateAttack(sourceId, targetId, attackerType, animType = 'default') { /* ... remains the same ... */ const sourceEl = document.getElementById(sourceId)?.querySelector('.unit'); const targetEl = document.getElementById(targetId)?.querySelector('.unit'); if (!sourceEl || !targetEl) return; sourceEl.style.transition = 'transform 0.1s ease-out'; const direction = (attackerType === 'player') ? 1 : -1; sourceEl.style.transform = `translateX(${direction * 20}px) scale(1.05)`; setTimeout(() => { sourceEl.style.transform = ''; }, 150); }
-        function animateHit(targetId) { /* ... remains the same ... */ const targetEl = document.getElementById(targetId)?.querySelector('.unit'); if (targetEl) { targetEl.classList.add('hit'); setTimeout(() => targetEl.classList.remove('hit'), 300); } }
-        function endGame(isWin, message) { /* ... remains the same ... */ if (gameOver) return; gameOver = true; playSound('game_over'); console.log("Game Over:", message); gameOverTitle.textContent = isWin ? "Correction Complete!" : "Logical Error!"; gameOverMessage.textContent = message; gameOverScreen.classList.remove('hidden'); gameOverScreen.classList.add('show'); }
+        // --- Sound ---
+        let synth, noiseSynth;
+        function setupSounds() { /* ... */ synth = new Tone.Synth({ oscillator: { type: 'sine' }, volume: -12, envelope: { attack: 0.005, decay: 0.1, sustain: 0.05, release: 0.1 } }).toDestination(); noiseSynth = new Tone.NoiseSynth({ noise: { type: 'white' }, volume: -22, envelope: { attack: 0.001, decay: 0.05, sustain: 0 } }).toDestination(); console.log("Audio context started."); soundEnabled = true; }
+        function playSound(type, value = 0) { /* ... */ if (!soundEnabled) return; try { const now = Tone.now(); switch(type) { case 'error': noiseSynth.triggerAttackRelease('16n', now); synth.triggerAttackRelease( Tone.Frequency(200 + Math.random()*100).toNote() , '16n', now + 0.01); break; case 'reset': synth.triggerAttackRelease('C5', '8n', now); break; case 'change_param': synth.triggerAttackRelease( Tone.Frequency(440 + value * 400).toNote() , '32n', now); break; case 'click': noiseSynth.triggerAttackRelease('64n', now); break; case 'burst': noiseSynth.triggerAttackRelease('0.2n', now); synth.triggerAttackRelease('G2', '0.2n', now); break; } } catch (e) { console.error("Sound playback error:", e); } }
+        function initAudio() { /* ... */ if (!soundEnabled && Tone.context.state !== 'running') { Tone.start().then(setupSounds); } else if (!soundEnabled && Tone.context.state === 'running') { setupSounds(); } window.removeEventListener('input', initAudio); window.removeEventListener('click', initAudio); }
+        window.addEventListener('input', initAudio, { once: true }); window.addEventListener('click', initAudio, { once: true });
 
         // --- Initialization ---
-        restartBtn.addEventListener('click', () => { playSound('click'); startGame(); });
-        document.addEventListener('DOMContentLoaded', startGame);
+        function initializeQubits() { /* ... */ console.log("Initializing qubits..."); qubits = []; const padding = canvas.width * 0.05; const availableWidth = canvas.width - 2 * padding; const availableHeight = canvas.height - 2 * padding; const cellSizeX = availableWidth / GRID_SIZE; const cellSizeY = availableHeight / GRID_SIZE; const qubitRadius = Math.min(cellSizeX, cellSizeY) * 0.35; for (let i = 0; i < NUM_QUBITS_VISUALIZED; i++) { const row = Math.floor(i / GRID_SIZE); const col = i % GRID_SIZE; const x = padding + col * cellSizeX + cellSizeX / 2; const y = padding + row * cellSizeY + cellSizeY / 2; qubits.push({ x: x, y: y, radius: qubitRadius, hasError: null, baseColor: `hsl(${200 + Math.random()*40}, 60%, ${60 + Math.random()*20}%)`, oscillation: Math.random() * Math.PI * 2 }); } console.log(`Initialized ${qubits.length} qubits.`); }
+        function resizeCanvas() { /* ... */ console.log("Resizing canvas..."); const container = canvas.parentElement; let size = container.clientWidth; if (size <= 0) { size = Math.min(window.innerWidth, window.innerHeight) * 0.8; console.warn("Container width zero, fallback size:", size); } size = Math.min(size, 700); canvas.width = size; canvas.height = size; initializeQubits(); }
+
+        // --- Simulation Logic ---
+        function updateErrors(deltaTime) { /* ... */ if (deltaTime <= 0 || deltaTime > 0.5) { return; } let errorCount = 0; const errorProbPerSecond = physicalErrorRateP; const leakageProbPerSecond = errorProbPerSecond * 0.2; const selfCorrectProbPerSecond = 0.1; qubits.forEach(q => { if (q.hasError && Math.random() < selfCorrectProbPerSecond * deltaTime) { q.hasError = null; } if (!q.hasError) { if (Math.random() < leakageProbPerSecond * deltaTime) { q.hasError = 'L'; playSound('error'); } else if (Math.random() < errorProbPerSecond * deltaTime) { q.hasError = Math.random() < 0.5 ? 'X' : 'Z'; playSound('error'); } } if (q.hasError) { errorCount++; } }); observedP = qubits.length > 0 ? errorCount / qubits.length : 0; }
+        function calculateAndUpdateOutputs() { /* ... */ const p_eff = observedP; const p_thr = pThreshold; const d = distanceD; if (p_eff > 0 && p_eff < p_thr) { suppressionFactorLambda = p_thr / p_eff; lambdaValueEl.textContent = `~${suppressionFactorLambda.toFixed(2)}`; lambdaValueEl.className = "value lambda-good"; } else if (p_eff >= p_thr) { suppressionFactorLambda = 0; lambdaValueEl.textContent = `FAIL`; lambdaValueEl.className = "value lambda-bad"; } else { suppressionFactorLambda = Infinity; lambdaValueEl.textContent = `∞`; lambdaValueEl.className = "value lambda-good"; } if (p_eff === 0) { logicalErrorRateEL = 1e-12; } else if (p_eff >= p_thr) { logicalErrorRateEL = 1.0; } else { const ratio = p_eff / p_thr; const exponent = (d + 1) / 2; logicalErrorRateEL = Math.pow(ratio, exponent) + 1e-12; logicalErrorRateEL = Math.min(1.0, logicalErrorRateEL); } pObservedEl.textContent = p_eff.toFixed(4); eLogicalEl.textContent = `~${logicalErrorRateEL.toExponential(1)}`; eLogicalEl.className = `value ${logicalErrorRateEL >= 0.1 ? 'el-fail' : logicalErrorRateEL >= 0.001 ? 'el-high' : logicalErrorRateEL >= 1e-5 ? 'el-med' : 'el-low'}`; if (p_eff < p_thr) { thresholdStatusEl.textContent = 'BELOW'; thresholdStatusEl.className = 'value threshold-below'; } else { thresholdStatusEl.textContent = 'ABOVE'; thresholdStatusEl.className = 'value threshold-above'; } }
+
+        // --- Drawing ---
+        let lastTime = 0;
+        function drawLoop(timestamp) { /* ... */ if (!lastTime) lastTime = timestamp; const deltaTime = (timestamp - lastTime) / 1000; lastTime = timestamp; updateErrors(deltaTime); calculateAndUpdateOutputs(); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#0b1120'; ctx.fillRect(0, 0, canvas.width, canvas.height); qubits.forEach(q => { q.oscillation += deltaTime * 3 * (Math.random() - 0.4); const radiusMult = 1 + Math.sin(q.oscillation) * 0.03; const currentRadius = q.radius * radiusMult; ctx.beginPath(); ctx.arc(q.x, q.y, currentRadius, 0, Math.PI * 2); ctx.globalAlpha = 0.7 + Math.sin(q.oscillation * 0.7 + q.x) * 0.3; ctx.fillStyle = q.baseColor; ctx.fill(); ctx.strokeStyle = q.baseColor; ctx.lineWidth = 0.5; ctx.stroke(); ctx.globalAlpha = 1.0; if (q.hasError) { const errorColor = q.hasError === 'X' ? 'var(--accent-red)' : q.hasError === 'Z' ? 'var(--accent-violet)' : 'var(--accent-orange)'; const errorText = q.hasError; ctx.fillStyle = errorColor; ctx.globalAlpha = 0.5 + Math.abs(Math.sin(timestamp / 150)) * 0.5; ctx.beginPath(); ctx.arc(q.x, q.y, currentRadius * 1.1, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1.0; ctx.fillStyle = '#000'; ctx.font = `bold ${currentRadius * 1.5}px Orbitron, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(errorText, q.x, q.y); } }); if(burstActive) { ctx.fillStyle = `rgba(255, 255, 255, ${0.2 + Math.random() * 0.1})`; ctx.fillRect(0, 0, canvas.width, canvas.height); burstActive = false; } animationFrameId = requestAnimationFrame(drawLoop); }
+
+        // --- Control Handlers ---
+        pRateSlider.addEventListener('input', (e) => { physicalErrorRateP = parseFloat(e.target.value); pRateValueEl.textContent = physicalErrorRateP.toFixed(4); playSound('change_param', physicalErrorRateP * 200); });
+        function setDistance(d) { playSound('click'); distanceD = d; Object.values(distButtons).forEach(btn => btn.classList.remove('active')); distButtons[d].classList.add('active'); console.log(`Set distance to ${d}`); }
+        function setDecoder(decoderName) { playSound('click'); selectedDecoder = decoderName; pThreshold = DECODER_THRESHOLDS[selectedDecoder]; pThrValueEl.textContent = pThreshold.toFixed(3); Object.values(decoderButtons).forEach(btn => btn.classList.remove('active')); decoderButtons[decoderName].classList.add('active'); console.log(`Set decoder to ${decoderName}, p_thr = ${pThreshold}`); }
+        resetErrorsBtn.addEventListener('click', () => { playSound('reset'); qubits.forEach(q => q.hasError = null); logEvent("Errors reset."); });
+        burstBtn.addEventListener('click', () => { playSound('burst'); logEvent("Triggering correlated burst!"); burstActive = true; const burstRadius = canvas.width * BURST_RADIUS_FACTOR; const burstX = Math.random() * canvas.width; const burstY = Math.random() * canvas.height; qubits.forEach(q => { const dx = q.x - burstX; const dy = q.y - burstY; if (dx*dx + dy*dy < burstRadius*burstRadius) { if (Math.random() < BURST_ERROR_PROB) { q.hasError = Math.random() < 0.5 ? 'X' : 'Z'; } } }); let errorCount = qubits.filter(q => q.hasError).length; observedP = qubits.length > 0 ? errorCount / qubits.length : 0; calculateAndUpdateOutputs(); });
+        function logEvent(message) { console.log(`[Sim] ${message}`); }
+
+        // --- Info Modal Listeners ---
+        infoBtn.addEventListener('click', () => { playSound('click'); infoModal.classList.add('show'); });
+        infoCloseBtn.addEventListener('click', () => { playSound('click'); infoModal.classList.remove('show'); });
+        infoModal.addEventListener('click', (event) => { if (event.target === infoModal) { playSound('click'); infoModal.classList.remove('show'); } });
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOM Loaded, initializing visualizer...");
+            physicalErrorRateP = parseFloat(pRateSlider.value); distanceD = 3; selectedDecoder = 'Advanced'; pThreshold = DECODER_THRESHOLDS[selectedDecoder];
+            resizeCanvas();
+            pRateValueEl.textContent = physicalErrorRateP.toFixed(4); pThrValueEl.textContent = pThreshold.toFixed(3);
+            distButtons[distanceD].classList.add('active'); decoderButtons[selectedDecoder].classList.add('active');
+            lastTime = performance.now(); if (animationFrameId) cancelAnimationFrame(animationFrameId); animationFrameId = requestAnimationFrame(drawLoop);
+            console.log("Visualizer initialized and loop started.");
+        });
+        window.addEventListener('resize', resizeCanvas);
 
     </script>
 
